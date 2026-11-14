@@ -3,6 +3,7 @@ export const WIDTH = 640;
 export const HEIGHT = 352;
 export const GRAVITY = 1100;
 export const ROOM_W = 40;
+export const ROOM_H = 22;
 
 export const PLAYER = {
   RUN_SPEED: 150,
