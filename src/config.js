@@ -65,10 +65,10 @@ export const EXIT = {
 export const CRAWLER = {
   CRAWL_SPEED: 30,
   CHASE_SPEED: 90,
-  HEARING: 220,
-  NOTICE: 28,
-  KILL: 48,
-  LOSE: 200,
+  HEARING: 150,
+  NOTICE: 22,
+  KILL: 40,
+  LOSE: 150,
   SEEK_MS: 6000,
-  SAFE: 160,
+  SAFE: 120,
 };

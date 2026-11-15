@@ -43,6 +43,7 @@ export function wallCells(grid, minSize = 40) {
 
 export default class Crawler {
   constructor(scene, grid, cx, cy) {
+    this.scene = scene;
     this.grid = grid;
     this.cx = cx;
     this.cy = cy;
@@ -77,6 +78,7 @@ export default class Crawler {
     if (this.state === 'chase') return;
     if (this.dist(x, y) > C.HEARING * loudness) return;
     this.state = 'seek';
+    if (this.state !== 'seek') this.chitter();
     this.targetX = x;
     this.targetY = y;
     this.seekUntil = time + C.SEEK_MS;
@@ -84,9 +86,18 @@ export default class Crawler {
 
   // Footsteps, only right beside it
   step(x, y) {
-    if (this.dist(x, y) < C.NOTICE) this.state = 'chase';
+    if (this.dist(x, y) >= C.NOTICE || this.state === 'chase') return;
+    this.chitter();
+    this.state = 'chase';
   }
 
+  // Click sound, louder when close
+  chitter() {
+    const bat = this.scene.player;
+    const d = bat ? this.dist(bat.x, bat.y) : 200;
+    this.scene.sound.play('chitter', { volume: Math.max(0.1, 0.6 - d / 500) });
+  }
+  
   // Too close to shout
   near(x, y) {
     return this.dist(x, y) < C.KILL;
