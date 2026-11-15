@@ -6,8 +6,8 @@ const CARDS = [
   ['← →   or   A D', 'move'],
   ['Space', 'jump · hold it to go higher'],
   ['X   or   J', 'shout · your echo shows the walls'],
-  ['↑ ↓   or   W S', 'hold while you shout to aim'],
-  ['hold X', 'focus · a longer, stronger shout'],
+  ['W A S D   or   arrows', 'hold any direction while you shout to aim'],
+  ['hold X   or   J', 'focus · a longer, stronger shout'],
   ['', "the rest, you'll learn down there."],
 ];
 
@@ -45,28 +45,25 @@ export default class TitleScene extends Phaser.Scene {
     this.doText = this.add.text(width / 2, height / 2 + 24, '', {
       fontFamily: 'monospace', fontSize: '14px', color: '#E8E8FF',
     }).setOrigin(0.5).setVisible(false);
-    this.cardHelp = this.add.text(width / 2, height - 24, 'any key: next · Esc: skip', {
+    this.cardHelp = this.add.text(width / 2, height - 24, '', {
       fontFamily: 'monospace', fontSize: '10px', color: '#5A5A7A',
     }).setOrigin(0.5).setVisible(false);
 
     this.card = -1;
+    this.starting = false;
     this.ready = false;
     this.time.delayedCall(300, () => { this.ready = true; });
 
-    this.input.keyboard.on('keydown', (e) => this.press(e.code === 'Escape'));
-    this.input.on('pointerdown', () => this.press(false));
+    this.input.keyboard.on('keydown', (e) => this.press(e.code));
+    this.input.on('pointerdown', () => { if (this.card === -1) this.press('Click'); });
     this.cameras.main.fadeIn(400);
   }
 
-  // Title --> cards --> game
-  press(skip) {
+  // Title --> cards (arrows only) --> game
+  press(code) {
     if (!this.ready) return;
-    this.ready = false;
-    this.time.delayedCall(200, () => { this.ready = true; });
 
-    if (skip) return this.startRun();
-
-    // First key, hide the title
+    // Any key leaves the title
     if (this.card === -1) {
       this.title.setVisible(false);
       this.sub.setVisible(false);
@@ -75,19 +72,35 @@ export default class TitleScene extends Phaser.Scene {
       this.keyText.setVisible(true);
       this.doText.setVisible(true);
       this.cardHelp.setVisible(true);
+      return this.showCard(0);
     }
 
-    this.card += 1;
-    if (this.card >= CARDS.length) return this.startRun();
+    // Cards: → next, ← back, Esc skip
+    if (code === 'ArrowRight') {
+      if (this.card === CARDS.length - 1) return this.startRun();
+      this.showCard(this.card + 1);
+    }
+    if (code === 'ArrowLeft' && this.card > 0) this.showCard(this.card - 1);
+    if (code === 'Escape') this.startRun();
+  }
 
-    const [keys, what] = CARDS[this.card];
+  showCard(n) {
+    this.card = n;
+    const [keys, what] = CARDS[n];
     this.keyText.setText(keys).setAlpha(0);
     this.doText.setText(what).setAlpha(0);
     this.tweens.add({ targets: [this.keyText, this.doText], alpha: 1, duration: 300 });
+
+    // Help line, last card starts
+    const last = n === CARDS.length - 1;
+    const back = n > 0 ? '← back · ' : '';
+    this.cardHelp.setText(`${back}→ ${last ? 'start' : 'next'} · Esc skip   ${n + 1}/${CARDS.length}`);
   }
 
   // a new run
   startRun() {
+    if (this.starting) return;
+    this.starting = true;
     this.registry.reset();
     this.cameras.main.fadeOut(300);
     this.time.delayedCall(300, () => this.scene.start('Game'));
