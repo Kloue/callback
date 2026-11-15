@@ -3,6 +3,14 @@ import { TILE, ECHO as E } from '../config.js';
 const COLORS = { 1: 0x5EF2FF, 2: 0xFF4A5A };
 const FULL = Math.PI * 2;
 
+// Spike scatter, shards per tile
+const SHARDS = 3;
+const SHARD_LEN = 22;
+const SHARD_MS = 300;
+
+// Push direction per face
+const NORMALS = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
+
 // Fixed noise
 function hash(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -26,16 +34,17 @@ export default class EchoSystem {
     this.rings = scene.add.graphics();
     this.active = [];
     this.ringList = [];
+    this.shards = [];
   }
 
-  // Cone, facing side (focus narrows it)
+  // Cone, facing side
   shout(x, y, angle, cone = E.CONE, range = E.SHOUT_RANGE) {
     const spread = (cone * Math.PI) / 180;
     const hits = this.ping(x, y, E.SHOUT_RAYS, range, true, angle, spread, true, 1);
 
     // Close wall, bounce back
     const near = hits.reduce((a, h) => (!a || h.dist < a.dist ? h : a), null);
-    if (near && near.dist < E.RETURN_DIST) {
+    if (near && near.dist < E.RETURN_DIST && near.cell === 1) {
       this.ringList.push({
         x: x + Math.cos(near.angle) * near.dist,
         y: y + Math.sin(near.angle) * near.dist,
@@ -71,12 +80,19 @@ export default class EchoSystem {
       hits.push(hit);
       this.addGlow(hit, hit.dist, dim, now, keys);
 
-      // One bounce, dimmer
       if (!bounce) continue;
-      const left = (range - hit.dist) * E.BOUNCE;
-      if (left < 8) continue;
       const hx = x + Math.cos(angle) * (hit.dist - 0.5);
       const hy = y + Math.sin(angle) * (hit.dist - 0.5);
+
+      // Spikes scatter, no clean bounce
+      if (hit.cell === 2) {
+        this.scatter(hit, hx, hy, now, keys);
+        continue;
+      }
+
+      // One bounce, dimmer
+      const left = (range - hit.dist) * E.BOUNCE;
+      if (left < 8) continue;
       const vertical = hit.face === 'W' || hit.face === 'E';
       const bounced = vertical ? Math.PI - angle : -angle;
       const hit2 = this.grid.castRay(hx, hy, bounced, left);
@@ -85,6 +101,25 @@ export default class EchoSystem {
 
     if (withRing) this.ringList.push({ x, y, range, start: now, centre, spread: full ? null : spread });
     return hits;
+  }
+
+  // Broken echo, random shards off the spike
+  scatter(hit, hx, hy, now, keys) {
+    const key = `s${hit.tx},${hit.ty}`;
+    if (keys.has(key)) return;
+    keys.add(key);
+
+    const [nx, ny] = NORMALS[hit.face];
+    const out = Math.atan2(ny, nx);
+    for (let i = 0; i < SHARDS; i++) {
+      this.shards.push({
+        x: hx,
+        y: hy,
+        angle: out + (Math.random() - 0.5) * 2.4,
+        len: SHARD_LEN * (0.5 + Math.random() * 0.5),
+        start: now + (hit.dist / E.RING_SPEED) * 1000,
+      });
+    }
   }
 
   // Lights when sound arrives
@@ -126,7 +161,7 @@ export default class EchoSystem {
   teeth(ends, face) {
     const [ax, ay] = ends[0].map((v) => v * TILE);
     const [bx, by] = ends[1].map((v) => v * TILE);
-    const [nx, ny] = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] }[face];
+    const [nx, ny] = NORMALS[face];
     const pts = [];
     for (let i = 0; i <= 6; i++) {
       const t = i / 6;
@@ -143,7 +178,9 @@ export default class EchoSystem {
       const age = time - s.start;
       if (age < 0) return true;
       if (age >= E.GLOW_MS) return false;
-      const alpha = (1 - age / E.GLOW_MS) ** 1.5 * s.dim;
+      let alpha = (1 - age / E.GLOW_MS) ** 1.5 * s.dim;
+      // Spikes crackle
+      if (s.cell === 2) alpha *= 0.6 + Math.random() * 0.4;
       this.glow.lineStyle(6, COLORS[s.cell], alpha * 0.25);
       this.glow.strokePoints(s.pts);
       this.glow.lineStyle(2, COLORS[s.cell], alpha);
@@ -167,6 +204,23 @@ export default class EchoSystem {
       } else {
         this.rings.strokeCircle(r.x, r.y, radius);
       }
+      return true;
+    });
+
+    // Shards, fly out and fade
+    this.shards = this.shards.filter((s) => {
+      const k = (time - s.start) / SHARD_MS;
+      if (k < 0) return true;
+      if (k >= 1) return false;
+      const near = s.len * k * 0.4;
+      const far = s.len * k;
+      this.rings.lineStyle(1.5, 0xFF4A5A, 1 - k);
+      this.rings.lineBetween(
+        s.x + Math.cos(s.angle) * near,
+        s.y + Math.sin(s.angle) * near,
+        s.x + Math.cos(s.angle) * far,
+        s.y + Math.sin(s.angle) * far,
+      );
       return true;
     });
   }
