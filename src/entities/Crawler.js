@@ -11,11 +11,31 @@ export function isWall(grid, cx, cy) {
 }
 
 // Every wall cell in the room
-export function wallCells(grid) {
+// Wall cells in big connected patches only (no tiny pockets to get stuck in)
+export function wallCells(grid, minSize = 40) {
+  const seen = new Uint8Array(grid.w * grid.h);
   const cells = [];
   for (let cy = 0; cy < grid.h; cy++) {
     for (let cx = 0; cx < grid.w; cx++) {
-      if (isWall(grid, cx, cy)) cells.push([cx, cy]);
+      if (seen[cy * grid.w + cx] || !isWall(grid, cx, cy)) continue;
+
+      // Flood fill this patch
+      const patch = [];
+      const todo = [[cx, cy]];
+      seen[cy * grid.w + cx] = 1;
+      while (todo.length > 0) {
+        const [x, y] = todo.pop();
+        patch.push([x, y]);
+        for (const [dx, dy] of DIRS) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= grid.w || ny >= grid.h) continue;
+          if (seen[ny * grid.w + nx] || !isWall(grid, nx, ny)) continue;
+          seen[ny * grid.w + nx] = 1;
+          todo.push([nx, ny]);
+        }
+      }
+      if (patch.length >= minSize) cells.push(...patch);
     }
   }
   return cells;

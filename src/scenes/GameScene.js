@@ -48,8 +48,14 @@ export default class GameScene extends Phaser.Scene {
     }));
     this.exitTime = 0;
 
-    // Crawlers, random spots on the walls, not near the start
+    // Crawlers: placed ones (points named 'crawler'), stay on their own wall patch
     this.crawlers = [];
+    for (const o of this.room.objects) {
+      if (o.name !== 'crawler') continue;
+      this.crawlers.push(new Crawler(this, this.grid, Math.floor(o.x / TILE), Math.floor(o.y / TILE)));
+    }
+
+    // Plus random ones on big walls, not near the start
     const count = this.room.props.crawlers ?? 0;
     const cells = wallCells(this.grid).filter(([cx, cy]) =>
       Math.hypot(cx * TILE + 8 - spawn.x, cy * TILE + 8 - spawn.y) > CRAWLER.SAFE);
