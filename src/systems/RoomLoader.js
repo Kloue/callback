@@ -1,3 +1,11 @@
+// Spike hitbox by tile: x, y, w, h (only its base)
+const SPIKE_BOX = {
+  2: [2, 10, 12, 6],
+  3: [2, 0, 12, 6],
+  4: [10, 2, 6, 12],
+  5: [0, 2, 6, 12],
+};
+
 export function loadRoom(scene, key) {
   // Tiled Map, tileset --> image
   const map = scene.make.tilemap({ key });
@@ -8,6 +16,12 @@ export function loadRoom(scene, key) {
 
   // Spikes, optional
   const spikes = map.getLayer('spikes') ? map.createLayer('spikes', tiles, 0, 0) : null;
+
+  const spikeBoxes = [];
+  spikes?.forEachTile((t) => {
+    const box = SPIKE_BOX[t.index];
+    if (box) spikeBoxes.push({ x: t.pixelX + box[0], y: t.pixelY + box[1], w: box[2], h: box[3] });
+  });
 
   // Spawn, exit
   const objects = map.getObjectLayer('objects')?.objects ?? [];
@@ -20,5 +34,5 @@ export function loadRoom(scene, key) {
     throw new Error(`Room "${key}" needs a point named 'spawn' and a rectangle named 'exit'`);
   }
 
-  return { map, solid, spikes, objects, spawn, exit };
+  return { map, solid, spikes, spikeBoxes, objects, spawn, exit };
 }

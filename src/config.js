@@ -39,4 +39,6 @@ export const RECOIL = {
   MAX: 360,
   KEEP: 0.3,
   LOCK_MS: 120,
-};
+};''
+
+export const RESPAWN_MS = 400;

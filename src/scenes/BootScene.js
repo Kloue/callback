@@ -1,11 +1,12 @@
 import * as Phaser from 'phaser';
+import { ROOMS } from '../data/rooms.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
 
   preload() {
     this.load.image('cave', 'assets/tiles/cave.png');
-    this.load.tilemapTiledJSON('test', 'assets/maps/test.tmj');
+    for (const key of ROOMS) this.load.tilemapTiledJSON(key, `assets/maps/${key}.tmj`);
     this.load.spritesheet('bat', 'assets/sprites/bat.png', { frameWidth: 16, frameHeight: 16 });
   }
 

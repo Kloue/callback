@@ -12,6 +12,10 @@ export default class TitleScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '12px', color: '#E8E8FF',
     }).setOrigin(0.5);
 
-    this.input.keyboard.once('keydown', () => this.scene.start('Game'));
+    // a new run
+    this.input.keyboard.once('keydown', () => {
+      this.registry.reset();
+      this.scene.start('Game');
+    });
   }
 }
