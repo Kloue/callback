@@ -6,10 +6,17 @@ import EchoSystem from '../systems/EchoSystem.js';
 import Bat from '../entities/Bat.js';
 import ExitLight from '../entities/ExitLight.js';
 import { ROOMS } from '../data/rooms.js';
-import { ECHO, FOCUS, RESPAWN_MS, CAMERA_ZOOM } from '../config.js';
+import { ECHO, FOCUS, EXIT, RESPAWN_MS, CAMERA_ZOOM } from '../config.js';
 
 // Box overlap
 const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+// Distance from a point to a box edge
+const distToBox = (x, y, r) => {
+  const dx = Math.max(r.x - x, 0, x - (r.x + r.w));
+  const dy = Math.max(r.y - y, 0, y - (r.y + r.h));
+  return Math.hypot(dx, dy);
+};
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -35,6 +42,7 @@ export default class GameScene extends Phaser.Scene {
     // Exit light
     this.exitLight = new ExitLight(this, exit, `exit-${this.roomKey}`);
     this.exitBox = { x: exit.x, y: exit.y, w: exit.width, h: exit.height };
+    this.exitTime = 0;
 
     // Bat
     this.player = new Bat(this, spawn.x, spawn.y);
@@ -46,8 +54,9 @@ export default class GameScene extends Phaser.Scene {
     this.nextStep = 0;
     this.wasGrounded = false;
 
-    // Focus bar, on top of bat
+    // Bars above bat: focus (cyan), exit (gold)
     this.focusG = this.add.graphics();
+    this.exitG = this.add.graphics();
 
     // Debug hitboxes, shown with terrain
     this.debugG = this.add.graphics().setVisible(false);
@@ -134,7 +143,18 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (this.room.spikeBoxes.some((s) => overlaps(me, s))) return this.die();
-    if (overlaps(me, this.exitBox)) return this.nextRoom();
+
+    // Close to exit, reveal it
+    if (distToBox(p.x, p.y, this.exitBox) < EXIT.NEAR) this.exitLight.reveal(time);
+
+    // Stay in exit to leave
+    if (overlaps(me, this.exitBox)) {
+      this.exitTime += delta;
+      if (this.exitTime >= EXIT.STAY_MS) return this.nextRoom();
+    } else {
+      this.exitTime = 0;
+    }
+    this.drawExitBar();
 
     // Fell out
     if (p.y > this.room.map.heightInPixels + 32) this.die();
@@ -174,9 +194,11 @@ export default class GameScene extends Phaser.Scene {
     this.checkExit(p, aim, time, cone, range);
 
     // Recoil, once per air
+    // Standing: floor only pushes if aiming down
     const onGround = p.body.blocked.down;
+    const aimingDown = Math.sin(aim) > 0.7;
     if (onGround || p.airCharge) {
-      const push = recoilFrom(hits, onGround, power);
+      const push = recoilFrom(hits, onGround && !aimingDown, power);
       if (push) {
         p.recoil(push, time);
         if (!onGround) p.airCharge = false;
@@ -185,7 +207,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  // Focus charge bar above bat
+  // Focus charge bar above bat, cyan
   drawFocus(focusing, charge) {
     const g = this.focusG.clear();
     if (!focusing) return;
@@ -195,6 +217,18 @@ export default class GameScene extends Phaser.Scene {
     g.fillRect(x, y, 16, 3);
     g.fillStyle(0x5EF2FF, 1);
     g.fillRect(x, y, 16 * charge, 3);
+  }
+
+  // Exit progress bar, gold
+  drawExitBar() {
+    const g = this.exitG.clear();
+    if (this.exitTime <= 0) return;
+    const x = this.player.x - 8;
+    const y = this.player.y - 18;
+    g.fillStyle(0x1A1A2E, 0.8);
+    g.fillRect(x, y, 16, 3);
+    g.fillStyle(0xFFC46B, 1);
+    g.fillRect(x, y, 16 * Math.min(1, this.exitTime / EXIT.STAY_MS), 3);
   }
 
   // Exit found by shout/echo

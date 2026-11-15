@@ -52,3 +52,9 @@ export const FOCUS = {
 };
 
 export const RESPAWN_MS = 400;
+
+export const EXIT = {
+  NEAR: 24,
+  STAY_MS: 1200,
+};
+

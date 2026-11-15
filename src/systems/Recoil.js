@@ -3,7 +3,7 @@ import { RECOIL as R } from '../config.js';
 // Push direction per face
 const NORMALS = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
 
-export function recoilFrom(hits, grounded, mult = 1) {
+export function recoilFrom(hits, ignoreFloor, mult = 1) {
   let sx = 0;
   let sy = 0;
   let nearest = Infinity;
@@ -13,7 +13,7 @@ export function recoilFrom(hits, grounded, mult = 1) {
     const [nx, ny] = NORMALS[h.face];
 
     // No floor hop
-    if (grounded && ny < 0) continue;
+    if (ignoreFloor && ny < 0) continue;
 
     // Closer, stronger
     const w = (1 - h.dist / R.RANGE) ** 2;
