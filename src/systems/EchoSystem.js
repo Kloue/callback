@@ -28,10 +28,10 @@ export default class EchoSystem {
     this.ringList = [];
   }
 
-  // Cone, facing side
-  shout(x, y, angle) {
-    const spread = (E.CONE * Math.PI) / 180;
-    const hits = this.ping(x, y, E.SHOUT_RAYS, E.SHOUT_RANGE, true, angle, spread, true, 1);
+  // Cone, facing side (focus narrows it)
+  shout(x, y, angle, cone = E.CONE, range = E.SHOUT_RANGE) {
+    const spread = (cone * Math.PI) / 180;
+    const hits = this.ping(x, y, E.SHOUT_RAYS, range, true, angle, spread, true, 1);
 
     // Close wall, bounce back
     const near = hits.reduce((a, h) => (!a || h.dist < a.dist ? h : a), null);

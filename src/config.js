@@ -4,6 +4,7 @@ export const HEIGHT = 352;
 export const GRAVITY = 1100;
 export const ROOM_W = 40;
 export const ROOM_H = 22;
+export const CAMERA_ZOOM = 2;
 
 export const PLAYER = {
   RUN_SPEED: 150,
@@ -36,9 +37,18 @@ export const ECHO = {
 
 export const RECOIL = {
   RANGE: 48,
-  MAX: 360,
+  MAX: 200,
   KEEP: 0.3,
   LOCK_MS: 120,
-};''
+};
+
+// Hold shout to focus
+export const FOCUS = {
+  HOLD_MS: 500,
+  CHARGE_MS: 700,
+  CONE: 40,
+  RANGE: 240,
+  RECOIL_MULT: 2.5,
+};
 
 export const RESPAWN_MS = 400;

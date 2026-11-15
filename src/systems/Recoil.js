@@ -3,7 +3,7 @@ import { RECOIL as R } from '../config.js';
 // Push direction per face
 const NORMALS = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
 
-export function recoilFrom(hits, grounded) {
+export function recoilFrom(hits, grounded, mult = 1) {
   let sx = 0;
   let sy = 0;
   let nearest = Infinity;
@@ -25,6 +25,7 @@ export function recoilFrom(hits, grounded) {
   const len = Math.hypot(sx, sy);
   if (len === 0) return null;
 
-  const strength = R.MAX * (1 - nearest / R.RANGE);
+  // Focus multiplies the push
+  const strength = R.MAX * mult * (1 - nearest / R.RANGE);
   return { x: (sx / len) * strength, y: (sy / len) * strength };
 }

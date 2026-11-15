@@ -6,9 +6,7 @@ import EchoSystem from '../systems/EchoSystem.js';
 import Bat from '../entities/Bat.js';
 import ExitLight from '../entities/ExitLight.js';
 import { ROOMS } from '../data/rooms.js';
-import { HEIGHT, ECHO, RESPAWN_MS } from '../config.js';
-
-const JustDown = Phaser.Input.Keyboard.JustDown;
+import { ECHO, FOCUS, RESPAWN_MS, CAMERA_ZOOM } from '../config.js';
 
 // Box overlap
 const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -21,7 +19,7 @@ export default class GameScene extends Phaser.Scene {
     this.roomIndex = this.registry.get('room') ?? 0;
     this.roomKey = ROOMS[this.roomIndex];
     this.room = loadRoom(this, this.roomKey);
-    const { solid, spikes, spawn, exit } = this.room;
+    const { map, solid, spikes, spawn, exit } = this.room;
     this.dead = false;
     this.leaving = false;
 
@@ -42,14 +40,25 @@ export default class GameScene extends Phaser.Scene {
     this.player = new Bat(this, spawn.x, spawn.y);
     this.physics.add.collider(this.player, solid);
     this.shoutKeys = this.input.keyboard.addKeys({ x: 'X', j: 'J' });
+    this.holding = false;
+    this.holdStart = 0;
     this.nextShout = 0;
     this.nextStep = 0;
     this.wasGrounded = false;
 
+    // Focus bar, on top of bat
+    this.focusG = this.add.graphics();
+
     // Debug hitboxes, shown with terrain
     this.debugG = this.add.graphics().setVisible(false);
 
-    this.cameras.main.fadeIn(150);
+    // Camera follows bat, zoomed in
+    const cam = this.cameras.main;
+    cam.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+    cam.setZoom(CAMERA_ZOOM);
+    cam.startFollow(this.player, true, 0.12, 0.12);
+    cam.setDeadzone(40, 24);
+    cam.fadeIn(150);
 
     // Debug: ` terrain, R restart, Esc title
     this.input.keyboard.on('keydown', (e) => {
@@ -69,31 +78,33 @@ export default class GameScene extends Phaser.Scene {
     const p = this.player;
     p.update(time, delta);
 
-    // Shout, aimed (directional)
-    const pressed = JustDown(this.shoutKeys.x) || JustDown(this.shoutKeys.j);
-    if (pressed && time >= this.nextShout) {
-      this.nextShout = time + ECHO.COOLDOWN;
-      const k = p.keys;
+    // Shout: tap = normal, hold = focus
+    const shoutDown = this.shoutKeys.x.isDown || this.shoutKeys.j.isDown;
 
-      // Aim: W/S straight, with ←→ diagonal, none = facing
-      const ax = (k.right.isDown || k.d.isDown) ? 1 : (k.left.isDown || k.a.isDown) ? -1 : 0;
-      const ay = (k.down.isDown || k.s.isDown) ? 1 : (k.up.isDown || k.w.isDown) ? -1 : 0;
-      const aim = ax === 0 && ay === 0 ? (p.flipX ? Math.PI : 0) : Math.atan2(ay, ax);
+    // Started holding
+    if (shoutDown && !this.holding && time >= this.nextShout) {
+      this.holding = true;
+      this.holdStart = time;
+    }
 
-      const hits = this.echo.shout(p.x, p.y, aim);
-      this.checkExit(p, aim, time);
-      const onGround = p.body.blocked.down;
-
-      // Recoil, once per air
-      if (onGround || p.airCharge) {
-        const push = recoilFrom(hits, onGround);
-        if (push) {
-          p.recoil(push, time);
-          if (!onGround) p.airCharge = false;
-          this.cameras.main.shake(80, 0.004);
-        }
+    // Charge, 0 to 1, only after holding long enough
+    let focusing = false;
+    let charge = 0;
+    if (this.holding) {
+      const held = time - this.holdStart;
+      if (held >= FOCUS.HOLD_MS) {
+        focusing = true;
+        charge = Math.min(1, (held - FOCUS.HOLD_MS) / FOCUS.CHARGE_MS);
       }
     }
+
+    // Let go, shout
+    if (this.holding && !shoutDown) {
+      this.holding = false;
+      this.shout(time, charge);
+    }
+
+    this.drawFocus(focusing, charge);
 
     // Footsteps, landing
     const grounded = p.body.blocked.down;
@@ -126,22 +137,79 @@ export default class GameScene extends Phaser.Scene {
     if (overlaps(me, this.exitBox)) return this.nextRoom();
 
     // Fell out
-    if (p.y > HEIGHT + 32) this.die();
+    if (p.y > this.room.map.heightInPixels + 32) this.die();
+  }
+
+  // Aim direction as an angle
+  getAim() {
+    const k = this.player.keys;
+    let ax = 0;
+    let ay = 0;
+    if (k.right.isDown || k.d.isDown) ax = 1;
+    if (k.left.isDown || k.a.isDown) ax = -1;
+    if (k.down.isDown || k.s.isDown) ay = 1;
+    if (k.up.isDown || k.w.isDown) ay = -1;
+
+    // Nothing held, face forward
+    if (ax === 0 && ay === 0) {
+      if (this.player.flipX) return Math.PI;
+      return 0;
+    }
+    return Math.atan2(ay, ax);
+  }
+
+  // Shout, charge 0 = normal, 1 = full focus
+  shout(time, charge) {
+    const p = this.player;
+    this.nextShout = time + ECHO.COOLDOWN;
+    const aim = this.getAim();
+
+    // Blend from normal to focus by charge
+    const cone = ECHO.CONE + (FOCUS.CONE - ECHO.CONE) * charge;
+    const range = ECHO.SHOUT_RANGE + (FOCUS.RANGE - ECHO.SHOUT_RANGE) * charge;
+    const power = 1 + (FOCUS.RECOIL_MULT - 1) * charge;
+
+    const hits = this.echo.shout(p.x, p.y, aim, cone, range);
+    p.shoutPose(time);
+    this.checkExit(p, aim, time, cone, range);
+
+    // Recoil, once per air
+    const onGround = p.body.blocked.down;
+    if (onGround || p.airCharge) {
+      const push = recoilFrom(hits, onGround, power);
+      if (push) {
+        p.recoil(push, time);
+        if (!onGround) p.airCharge = false;
+        this.cameras.main.shake(80, 0.003 * power);
+      }
+    }
+  }
+
+  // Focus charge bar above bat
+  drawFocus(focusing, charge) {
+    const g = this.focusG.clear();
+    if (!focusing) return;
+    const x = this.player.x - 8;
+    const y = this.player.y - 14;
+    g.fillStyle(0x1A1A2E, 0.8);
+    g.fillRect(x, y, 16, 3);
+    g.fillStyle(0x5EF2FF, 1);
+    g.fillRect(x, y, 16 * charge, 3);
   }
 
   // Exit found by shout/echo
-  checkExit(p, aim, time) {
+  checkExit(p, aim, time, cone, range) {
     if (this.exitLight.seen) return;
     const { exit } = this.room;
     const dx = exit.x + exit.width / 2 - p.x;
     const dy = exit.y + exit.height / 2 - p.y;
     const dist = Math.hypot(dx, dy);
-    if (dist > ECHO.SHOUT_RANGE) return;
+    if (dist > range) return;
 
     // Inside cone
     const angle = Math.atan2(dy, dx);
     const off = Math.abs(Math.atan2(Math.sin(angle - aim), Math.cos(angle - aim)));
-    if (off > (ECHO.CONE * Math.PI) / 360) return;
+    if (off > (cone * Math.PI) / 360) return;
 
     // Not behind rock
     if (this.grid.castRay(p.x, p.y, angle, dist - 8)) return;

@@ -1,10 +1,11 @@
-import { TILE, ROOM_W, ROOM_H } from '../config.js';
+import { TILE } from '../config.js';
 
 // 0 empty, 1 rock, 2 spike
 export default class EchoGrid {
   constructor(solid, spikes) {
-    this.w = ROOM_W;
-    this.h = ROOM_H;
+    // Size from the map itself
+    this.w = solid.layer.width;
+    this.h = solid.layer.height;
     this.cells = new Uint8Array(this.w * this.h);
     solid.forEachTile((t) => { if (t.index !== -1) this.set(t.x, t.y, 1); });
     spikes?.forEachTile((t) => { if (t.index !== -1) this.set(t.x, t.y, 2); });

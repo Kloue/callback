@@ -1,7 +1,6 @@
 import * as Phaser from 'phaser';
 import { PLAYER as P, RECOIL } from '../config.js';
 
-
 const JustDown = Phaser.Input.Keyboard.JustDown;
 
 // Smooth accell/decel
@@ -35,6 +34,7 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     this.controlLockUntil = 0;
     this.rising = false;
     this.airCharge = true;
+    this.shoutUntil = 0;
 
     Bat.createAnims(scene);
     this.play('bat-idle');
@@ -48,6 +48,7 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     scene.anims.create({ key: 'bat-run', frames: frames([2, 3]), frameRate: 8, repeat: -1 });
     scene.anims.create({ key: 'bat-jump', frames: frames([4]) });
     scene.anims.create({ key: 'bat-fall', frames: frames([5]) });
+    scene.anims.create({ key: 'bat-shout', frames: frames([6]) });
   }
 
   update(time, delta) {
@@ -57,12 +58,12 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     const k = this.keys;
     const grounded = b.blocked.down;
 
-    
     // landing on the ground refils the recoil
     if (grounded) {
       this.lastGrounded = time;
       this.airCharge = true;
     }
+
     // -1 left, 1 right
     const dir = ((k.right.isDown || k.d.isDown) ? 1 : 0) - ((k.left.isDown || k.a.isDown) ? 1 : 0);
 
@@ -90,17 +91,23 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     }
     if (b.velocity.y >= 0) this.rising = false;
 
-    // Facing, anims
+    // Facing, anims (shout pose wins)
     if (dir !== 0) this.setFlipX(dir < 0);
-    if (!grounded) this.play(b.velocity.y < 0 ? 'bat-jump' : 'bat-fall', true);
+    if (time < this.shoutUntil) this.play('bat-shout', true);
+    else if (!grounded) this.play(b.velocity.y < 0 ? 'bat-jump' : 'bat-fall', true);
     else this.play(dir !== 0 ? 'bat-run' : 'bat-idle', true);
-    }
+  }
 
-   // Echo push
-    recoil(push, time) {
-        this.body.velocity.x = this.body.velocity.x * RECOIL.KEEP + push.x;
-        this.body.velocity.y = this.body.velocity.y * RECOIL.KEEP + push.y;
-        this.controlLockUntil = time + RECOIL.LOCK_MS;
-        this.rising = false;
-    }
+  // Echo push
+  recoil(push, time) {
+    this.body.velocity.x = this.body.velocity.x * RECOIL.KEEP + push.x;
+    this.body.velocity.y = this.body.velocity.y * RECOIL.KEEP + push.y;
+    this.controlLockUntil = time + RECOIL.LOCK_MS;
+    this.rising = false;
+  }
+
+  // Mouth open briefly
+  shoutPose(time) {
+    this.shoutUntil = time + 150;
+  }
 }
