@@ -52,6 +52,8 @@ export const FOCUS = {
   // Dash, away from aim, works in open air
   DASH: 280,
   LOCK_MS: 260,
+  // Slow motion while focusing in the air (2 = half speed)
+  SLOWMO: 2.5,
 };
 
 export const RESPAWN_MS = 400;

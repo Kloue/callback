@@ -8,11 +8,12 @@ export default class BootScene extends Phaser.Scene {
     this.load.image('cave', 'assets/tiles/cave.png');
     for (const key of ROOMS) this.load.tilemapTiledJSON(key, `assets/maps/${key}.tmj`);
     this.load.spritesheet('bat', 'assets/sprites/bat.png', { frameWidth: 16, frameHeight: 16 });
-        // Sounds
+    this.load.spritesheet('crawler', 'assets/sprites/crawler.png', { frameWidth: 16, frameHeight: 16 });
+
+    // Sounds
     for (const s of ['shout', 'echo', 'step', 'land', 'death', 'exit', 'chitter', 'scatter']) {
       this.load.audio(s, `assets/sounds/${s}.wav`);
     }
-    this.load.spritesheet('crawler', 'assets/sprites/crawler.png', { frameWidth: 16, frameHeight: 16 });
   }
 
   create() {

@@ -30,6 +30,7 @@ export default class GameScene extends Phaser.Scene {
     const spawn = this.room.find(this.registry.get('entry') ?? 'spawn') ?? this.room.spawn;
     this.dead = false;
     this.leaving = false;
+    this.physics.world.timeScale = 1;
 
     // Hidden terrain, echo reveals stuff
     this.terrainVisible = false;
@@ -141,11 +142,15 @@ export default class GameScene extends Phaser.Scene {
 
     this.drawFocus(focusing, charge);
 
+    // Slow time while focusing in the air
+    const airFocus = this.holding && focusing && !p.body.blocked.down;
+    this.physics.world.timeScale = airFocus ? FOCUS.SLOWMO : 1;
+
     // Footsteps, landing
     const grounded = p.body.blocked.down;
     if (grounded && !this.wasGrounded) {
       this.footstep(p, time);
-      this.sound.play('land', { volume: 0.3 });
+      this.sfx('land', { volume: 0.3 });
     }
     if (grounded && Math.abs(p.body.velocity.x) > 20 && time >= this.nextStep) {
       this.nextStep = time + 250;
@@ -199,13 +204,12 @@ export default class GameScene extends Phaser.Scene {
 
   // Aim direction as an angle
   getAim() {
-    const k = this.player.keys;
-    let ax = 0;
-    let ay = 0;
-    if (k.right.isDown || k.d.isDown) ax = 1;
-    if (k.left.isDown || k.a.isDown) ax = -1;
-    if (k.down.isDown || k.s.isDown) ay = 1;
-    if (k.up.isDown || k.w.isDown) ay = -1;
+    const p = this.player;
+    const k = p.keys;
+
+    // Latest pressed key wins on each axis
+    const ax = p.axis(k.left, k.a, k.right, k.d);
+    const ay = p.axis(k.up, k.w, k.down, k.s);
 
     // Nothing held, face forward
     if (ax === 0 && ay === 0) {
@@ -259,7 +263,10 @@ export default class GameScene extends Phaser.Scene {
     if (!push) return;
 
     const lock = charge > 0 ? FOCUS.LOCK_MS : RECOIL.LOCK_MS;
-    p.recoil(push, time, lock);
+
+    // Sideways focus dash floats (no fall) for the lock
+    const float = charge > 0 && Math.abs(push.x) > Math.abs(push.y);
+    p.recoil(push, time, lock, float);
     if (!onGround) p.airCharge = false;
     this.cameras.main.shake(80, 0.003 * power);
   }
@@ -287,22 +294,28 @@ export default class GameScene extends Phaser.Scene {
     g.fillStyle(0xFFC46B, 1);
     g.fillRect(x, y, 16 * Math.min(1, this.exitTime / EXIT.STAY_MS), 3);
   }
-    // Shout sound, echo back from the nearest wall, crackle off spikes
+
+  // Play a sound, only if it loaded (no crash if a file is missing)
+  sfx(key, config) {
+    if (this.cache.audio.exists(key)) this.sound.play(key, config);
+  }
+
+  // Shout sound, echo back from the nearest wall, crackle off spikes
   shoutSound(hits, charge) {
-    this.sound.play('shout', { volume: 0.5, rate: 1 - charge * 0.3 });
+    this.sfx('shout', { volume: 0.5, rate: 1 - charge * 0.3 });
     let rock = Infinity;
     let spike = Infinity;
     for (const h of hits) {
       if (h.cell === 2) spike = Math.min(spike, h.dist);
       else rock = Math.min(rock, h.dist);
     }
-    if (rock < Infinity) this.sound.play('echo', { volume: 0.3, delay: (rock * 2) / ECHO.RING_SPEED });
-    if (spike < Infinity) this.sound.play('scatter', { volume: 0.4, delay: (spike * 2) / ECHO.RING_SPEED });
+    if (rock < Infinity) this.sfx('echo', { volume: 0.3, delay: (rock * 2) / ECHO.RING_SPEED });
+    if (spike < Infinity) this.sfx('scatter', { volume: 0.4, delay: (spike * 2) / ECHO.RING_SPEED });
   }
 
   // Footstep, tiny echo, crawlers right beside notice
   footstep(p, time) {
-    this.sound.play('step', { volume: 0.12 });
+    this.sfx('step', { volume: 0.12 });
     this.echo.smallPing(p.x, p.y + 4);
     for (const c of this.crawlers) {
       c.step(p.x, p.y);
@@ -346,7 +359,8 @@ export default class GameScene extends Phaser.Scene {
     this.registry.set('deaths', (this.registry.get('deaths') ?? 0) + 1);
     this.player.body.enable = false;
     this.player.setTint(0xFF4A5A);
-    this.sound.play('death', { volume: 0.5 });
+    this.physics.world.timeScale = 1;
+    this.sfx('death', { volume: 0.5 });
     this.cameras.main.shake(150, 0.008);
     this.time.delayedCall(RESPAWN_MS, () => this.scene.restart());
   }
@@ -358,7 +372,7 @@ export default class GameScene extends Phaser.Scene {
     const p = this.player;
     p.body.setVelocityX(p.flipX ? -90 : 90);
     p.play('bat-run', true);
-    this.sound.play('exit', { volume: 0.5 });
+    this.sfx('exit', { volume: 0.5 });
     this.cameras.main.fadeOut(300);
 
     this.time.delayedCall(300, () => {

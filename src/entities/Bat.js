@@ -35,6 +35,7 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     this.rising = false;
     this.airCharge = true;
     this.shoutUntil = 0;
+    this.floatUntil = 0;
 
     Bat.createAnims(scene);
     this.play('bat-idle');
@@ -64,8 +65,11 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
       this.airCharge = true;
     }
 
-    // -1 left, 1 right
-    const dir = ((k.right.isDown || k.d.isDown) ? 1 : 0) - ((k.left.isDown || k.a.isDown) ? 1 : 0);
+    // -1 left, 1 right (latest key wins)
+    const dir = this.axis(k.left, k.a, k.right, k.d);
+
+    // Focus dash floats, no gravity for a moment
+    b.setAllowGravity(time >= this.floatUntil);
 
     // Run
     if (time >= this.controlLockUntil) {
@@ -98,12 +102,21 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     else this.play(dir !== 0 ? 'bat-run' : 'bat-idle', true);
   }
 
-  // Echo push, focus locks longer
-  recoil(push, time, lockMs = RECOIL.LOCK_MS) {
+  // Echo push, focus locks longer (and can float)
+  recoil(push, time, lockMs = RECOIL.LOCK_MS, float = false) {
     this.body.velocity.x = this.body.velocity.x * RECOIL.KEEP + push.x;
     this.body.velocity.y = this.body.velocity.y * RECOIL.KEEP + push.y;
     this.controlLockUntil = time + lockMs;
+    if (float) this.floatUntil = time + lockMs;
     this.rising = false;
+  }
+
+  // Two keys each way, -1 / 0 / 1, latest pressed wins
+  axis(neg1, neg2, pos1, pos2) {
+    const neg = Math.max(neg1.isDown ? neg1.timeDown : -1, neg2.isDown ? neg2.timeDown : -1);
+    const pos = Math.max(pos1.isDown ? pos1.timeDown : -1, pos2.isDown ? pos2.timeDown : -1);
+    if (neg < 0 && pos < 0) return 0;
+    return pos > neg ? 1 : -1;
   }
 
   // Shout frame, short

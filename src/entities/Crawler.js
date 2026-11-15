@@ -95,7 +95,7 @@ export default class Crawler {
   chitter() {
     const bat = this.scene.player;
     const d = bat ? this.dist(bat.x, bat.y) : 200;
-    this.scene.sound.play('chitter', { volume: Math.max(0.1, 0.6 - d / 500) });
+    this.scene.sfx('chitter', { volume: Math.max(0.1, 0.6 - d / 500) });
   }
   
   // Too close to shout
