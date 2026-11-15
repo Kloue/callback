@@ -1,9 +1,10 @@
 // Spike hitbox by tile: x, y, w, h (only its base)
+const x = 8
 const SPIKE_BOX = {
-  2: [2, 10, 12, 6],
-  3: [2, 0, 12, 6],
-  4: [10, 2, 6, 12],
-  5: [0, 2, 6, 12],
+  2: [1, 16 - x, 14, x],
+  3: [1, 0, 14, x],
+  4: [16 - x, 1, x, 14],
+  5: [0, 1, x, 14],
 };
 
 export function loadRoom(scene, key) {

@@ -46,6 +46,9 @@ export default class GameScene extends Phaser.Scene {
     this.nextStep = 0;
     this.wasGrounded = false;
 
+    // Debug hitboxes, shown with terrain
+    this.debugG = this.add.graphics().setVisible(false);
+
     this.cameras.main.fadeIn(150);
 
     // Debug: ` terrain, R restart, Esc title
@@ -54,6 +57,7 @@ export default class GameScene extends Phaser.Scene {
         this.terrainVisible = !this.terrainVisible;
         solid.setVisible(this.terrainVisible);
         spikes?.setVisible(this.terrainVisible);
+        this.debugG.setVisible(this.terrainVisible);
       }
       if (e.code === 'KeyR') this.scene.restart();
       if (e.code === 'Escape') this.scene.start('Title');
@@ -106,6 +110,18 @@ export default class GameScene extends Phaser.Scene {
     // Spikes, exit
     const b = p.body;
     const me = { x: b.x, y: b.y, w: b.width, h: b.height };
+
+    // Debug hitboxes
+    if (this.terrainVisible) {
+      const d = this.debugG.clear();
+      d.lineStyle(1, 0xFF4A5A, 1);
+      for (const s of this.room.spikeBoxes) d.strokeRect(s.x, s.y, s.w, s.h);
+      d.lineStyle(1, 0x00FF88, 1);
+      d.strokeRect(b.x, b.y, b.width, b.height);
+      d.lineStyle(1, 0xFFC46B, 1);
+      d.strokeRect(this.exitBox.x, this.exitBox.y, this.exitBox.w, this.exitBox.h);
+    }
+
     if (this.room.spikeBoxes.some((s) => overlaps(me, s))) return this.die();
     if (overlaps(me, this.exitBox)) return this.nextRoom();
 
@@ -113,7 +129,7 @@ export default class GameScene extends Phaser.Scene {
     if (p.y > HEIGHT + 32) this.die();
   }
 
-  // Exit found by shout
+  // Exit found by shout/echo
   checkExit(p, aim, time) {
     if (this.exitLight.seen) return;
     const { exit } = this.room;

@@ -10,7 +10,7 @@ function hash(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
 }
 
-// Jagged corner
+// Jagged corners (makes blocks into irregular walls)
 function corner(cx, cy) {
   return {
     x: cx * TILE + (hash(cx, cy) - 0.5) * 2 * E.JITTER,
@@ -102,13 +102,15 @@ export default class EchoSystem {
   }
 
   // Tile edge, jagged
-  faceSegment({ tx, ty, face }) {
+  faceSegment({ tx, ty, face, cell }) {
     const ends = {
       W: [[tx, ty], [tx, ty + 1]],
       E: [[tx + 1, ty], [tx + 1, ty + 1]],
       N: [[tx, ty], [tx + 1, ty]],
       S: [[tx, ty + 1], [tx + 1, ty + 1]],
     }[face];
+    if (cell === 2) return this.teeth(ends, face);
+
     const a = corner(...ends[0]);
     const b = corner(...ends[1]);
     const n = (hash(tx * 4 + face.charCodeAt(0), ty) - 0.5) * 2 * E.JITTER;
@@ -118,6 +120,20 @@ export default class EchoSystem {
       y: (a.y + b.y) / 2 + (vertical ? 0 : n),
     };
     return [a, mid, b];
+  }
+
+  // Spike teeth, tips on the edge
+  teeth(ends, face) {
+    const [ax, ay] = ends[0].map((v) => v * TILE);
+    const [bx, by] = ends[1].map((v) => v * TILE);
+    const [nx, ny] = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] }[face];
+    const pts = [];
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6;
+      const inset = i % 2 === 0 ? 6 : 0;
+      pts.push({ x: ax + (bx - ax) * t - nx * inset, y: ay + (by - ay) * t - ny * inset });
+    }
+    return pts;
   }
 
   update(time) {
