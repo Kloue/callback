@@ -44,8 +44,8 @@ export const RECOIL = {
 
 // Hold shout to focus
 export const FOCUS = {
-  HOLD_MS: 500,
-  CHARGE_MS: 700,
+  HOLD_MS: 250,
+  CHARGE_MS: 500,
   CONE: 40,
   RANGE: 240,
   RECOIL_MULT: 2.5,
