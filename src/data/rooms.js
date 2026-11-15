@@ -20,7 +20,7 @@ export const STORY = {
     'The colony is up there somewhere.',
     'He shouted.\nSomething answered.',
     'To be continued.',
-    'PING is a work in progress.\nThanks for playing.',
+    'CALLBACK is a work in progress.\nThanks for playing.',
     'deaths: {deaths}',
   ],
 };

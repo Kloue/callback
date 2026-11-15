@@ -18,10 +18,10 @@ export default class TitleScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     // Title, lit by the echo
-    this.title = this.add.text(width / 2, height / 2 - 50, 'PING', {
-      fontFamily: 'monospace', fontSize: '64px', color: '#5EF2FF',
+    this.title = this.add.text(width / 2, height / 2 - 50, 'CALLBACK', {
+      fontFamily: 'monospace', fontSize: '56px', color: '#5EF2FF',
     }).setOrigin(0.5);
-    this.sub = this.add.text(width / 2, height / 2 + 2, 'a bat, a broken wing, and an echo', {
+    this.sub = this.add.text(width / 2, height / 2 + 2, 'a bat named Ping, a broken wing, and an echo', {
       fontFamily: 'monospace', fontSize: '10px', color: '#8A8AB0',
     }).setOrigin(0.5);
 
