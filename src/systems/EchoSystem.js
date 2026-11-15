@@ -1,6 +1,7 @@
 import { TILE, ECHO as E } from '../config.js';
 
 const COLORS = { 1: 0x5EF2FF, 2: 0xFF4A5A };
+const FULL = Math.PI * 2;
 
 // Fixed noise
 function hash(x, y) {
@@ -21,49 +22,83 @@ export default class EchoSystem {
   constructor(scene, grid) {
     this.scene = scene;
     this.grid = grid;
-    this.trace = scene.add.graphics();
     this.glow = scene.add.graphics();
     this.rings = scene.add.graphics();
     this.active = [];
     this.ringList = [];
-    this.seen = new Set();
   }
 
-  shout(x, y) {
-    return this.ping(x, y, E.SHOUT_RAYS, E.SHOUT_RANGE, true);
+  // Cone, facing side
+  shout(x, y, angle) {
+    const spread = (E.CONE * Math.PI) / 180;
+    const hits = this.ping(x, y, E.SHOUT_RAYS, E.SHOUT_RANGE, true, angle, spread, true, 1);
+
+    // Close wall, bounce back
+    const near = hits.reduce((a, h) => (!a || h.dist < a.dist ? h : a), null);
+    if (near && near.dist < E.RETURN_DIST) {
+      this.ringList.push({
+        x: x + Math.cos(near.angle) * near.dist,
+        y: y + Math.sin(near.angle) * near.dist,
+        range: E.RETURN_RANGE,
+        start: this.scene.time.now + (near.dist / E.RING_SPEED) * 1000,
+        centre: near.angle + Math.PI,
+        spread: spread * 0.75,
+        bright: true,
+      });
+    }
+    return hits;
   }
 
+  // All round, short
   smallPing(x, y) {
-    return this.ping(x, y, E.STEP_RAYS, E.STEP_RANGE, false);
+    return this.ping(x, y, E.STEP_RAYS, E.STEP_RANGE, false, 0, FULL, false, E.STEP_DIM);
   }
 
-  ping(x, y, rays, range, withRing) {
+  ping(x, y, rays, range, withRing, centre, spread, bounce, dim) {
     const now = this.scene.time.now;
     const hits = [];
     const keys = new Set();
+    const full = spread >= FULL;
 
     for (let i = 0; i < rays; i++) {
-      const angle = (i * Math.PI * 2) / rays + 0.001;
+      const angle = full
+        ? (i * FULL) / rays + 0.001
+        : centre - spread / 2 + (spread * (i + 0.5)) / rays + 0.001;
+
       const hit = this.grid.castRay(x, y, angle, range);
       if (!hit) continue;
+      hit.angle = angle;
       hits.push(hit);
+      this.addGlow(hit, hit.dist, dim, now, keys);
 
-      // One glow per tile edge
-      const key = `${hit.tx},${hit.ty},${hit.face}`;
-      if (keys.has(key)) continue;
-      keys.add(key);
-
-      // Lights when ring arrives
-      this.active.push({
-        key,
-        cell: hit.cell,
-        pts: this.faceSegment(hit),
-        start: now + (hit.dist / E.RING_SPEED) * 1000,
-      });
+      // One bounce, dimmer
+      if (!bounce) continue;
+      const left = (range - hit.dist) * E.BOUNCE;
+      if (left < 8) continue;
+      const hx = x + Math.cos(angle) * (hit.dist - 0.5);
+      const hy = y + Math.sin(angle) * (hit.dist - 0.5);
+      const vertical = hit.face === 'W' || hit.face === 'E';
+      const bounced = vertical ? Math.PI - angle : -angle;
+      const hit2 = this.grid.castRay(hx, hy, bounced, left);
+      if (hit2) this.addGlow(hit2, hit.dist + hit2.dist, dim * E.BOUNCE_DIM, now, keys);
     }
 
-    if (withRing) this.ringList.push({ x, y, range, start: now });
+    if (withRing) this.ringList.push({ x, y, range, start: now, centre, spread: full ? null : spread });
     return hits;
+  }
+
+  // Lights when sound arrives
+  addGlow(hit, travelled, dim, now, keys) {
+    const key = `${hit.tx},${hit.ty},${hit.face}`;
+    if (keys.has(key)) return;
+    keys.add(key);
+    this.active.push({
+      key,
+      dim,
+      cell: hit.cell,
+      pts: this.faceSegment(hit),
+      start: now + (travelled / E.RING_SPEED) * 1000,
+    });
   }
 
   // Tile edge, jagged
@@ -91,11 +126,8 @@ export default class EchoSystem {
     this.active = this.active.filter((s) => {
       const age = time - s.start;
       if (age < 0) return true;
-      if (age >= E.GLOW_MS) {
-        this.stamp(s);
-        return false;
-      }
-      const alpha = 1 - (1 - E.TRACE_ALPHA) * (age / E.GLOW_MS);
+      if (age >= E.GLOW_MS) return false;
+      const alpha = (1 - age / E.GLOW_MS) ** 1.5 * s.dim;
       this.glow.lineStyle(6, COLORS[s.cell], alpha * 0.25);
       this.glow.strokePoints(s.pts);
       this.glow.lineStyle(2, COLORS[s.cell], alpha);
@@ -103,23 +135,23 @@ export default class EchoSystem {
       return true;
     });
 
-    // Rings
+    // Ring, arc if cone
     this.rings.clear();
     this.ringList = this.ringList.filter((r) => {
       const radius = ((time - r.start) / 1000) * E.RING_SPEED;
+      if (radius < 0) return true;
       if (radius > r.range) return false;
       const k = radius / r.range;
-      this.rings.lineStyle(3 - 2 * k, 0xE8E8FF, 0.8 * (1 - k));
-      this.rings.strokeCircle(r.x, r.y, radius);
+      const color = r.bright ? 0x5EF2FF : 0xE8E8FF;
+      this.rings.lineStyle((r.bright ? 2.5 : 3) - 2 * k, color, (r.bright ? 1 : 0.8) * (1 - k));
+      if (r.spread) {
+        this.rings.beginPath();
+        this.rings.arc(r.x, r.y, radius, r.centre - r.spread / 2, r.centre + r.spread / 2);
+        this.rings.strokePath();
+      } else {
+        this.rings.strokeCircle(r.x, r.y, radius);
+      }
       return true;
     });
-  }
-
-  // Faint permanent outline
-  stamp(s) {
-    if (this.seen.has(s.key)) return;
-    this.seen.add(s.key);
-    this.trace.lineStyle(1.5, COLORS[s.cell], E.TRACE_ALPHA);
-    this.trace.strokePoints(s.pts);
   }
 }

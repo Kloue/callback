@@ -4,6 +4,7 @@ import Bat from '../entities/Bat.js';
 import EchoGrid from '../systems/EchoGrid.js';
 import EchoSystem from '../systems/EchoSystem.js';
 import { HEIGHT, ECHO } from '../config.js';
+import ExitLight from '../entities/ExitLight.js';
 const JustDown = Phaser.Input.Keyboard.JustDown;
 
 export default class GameScene extends Phaser.Scene {
@@ -21,9 +22,8 @@ export default class GameScene extends Phaser.Scene {
     //echo
     this.echo = new EchoSystem(this, new EchoGrid(solid, spikes));
 
-    // Exit outline 
-    this.add.rectangle(exit.x + exit.width / 2, exit.y + exit.height / 2, exit.width, exit.height)
-      .setStrokeStyle(1, 0x5EF2FF, 0.4);
+    // Exit light
+    this.exitLight = new ExitLight(this, exit);
 
     // Bat
     this.player = new Bat(this, spawn.x, spawn.y);
@@ -49,11 +49,15 @@ export default class GameScene extends Phaser.Scene {
     const p = this.player;
     p.update(time, delta);
 
-    // Shout
+    // Shout, aimed (directional)
     const pressed = JustDown(this.shoutKeys.x) || JustDown(this.shoutKeys.j);
     if (pressed && time >= this.nextShout) {
       this.nextShout = time + ECHO.COOLDOWN;
-      this.echo.shout(p.x, p.y);
+      const k = p.keys;
+      const ax = p.flipX ? -1 : 1;
+      const ay = (k.down.isDown || k.s.isDown) ? 1 : (k.up.isDown || k.w.isDown) ? -1 : 0;
+      const aim = Math.atan2(ay, ax);
+      this.echo.shout(p.x, p.y, aim);
     }
 
     // Footsteps, landing
@@ -66,6 +70,7 @@ export default class GameScene extends Phaser.Scene {
     this.wasGrounded = grounded;
 
     this.echo.update(time);
+    this.exitLight.update(time, delta);
 
     // Fell out
     if (p.y > HEIGHT + 32) this.scene.restart();

@@ -21,7 +21,8 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
 
     this.keys = scene.input.keyboard.addKeys({
       left: 'LEFT', right: 'RIGHT', a: 'A', d: 'D',
-      jump: 'SPACE', up: 'UP', w: 'W',
+      up: 'UP', w: 'W', down: 'DOWN', s: 'S',
+      jump: 'SPACE',
     });
 
     // No page scrolling
@@ -65,8 +66,8 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
       b.velocity.x = moveTowards(b.velocity.x, dir * P.RUN_SPEED, accel * dt);
     }
 
-    if (JustDown(k.jump) || JustDown(k.up) || JustDown(k.w)) this.lastJumpPressed = time;
-    const jumpHeld = k.jump.isDown || k.up.isDown || k.w.isDown;
+    if (JustDown(k.jump)) this.lastJumpPressed = time;
+    const jumpHeld = k.jump.isDown;
 
     // Jump
     if (time - this.lastJumpPressed <= P.JUMP_BUFFER && time - this.lastGrounded <= P.COYOTE) {
