@@ -11,7 +11,7 @@ export const PLAYER = {
   GROUND_ACCEL: 1400,
   GROUND_DECEL: 1800,
   AIR_ACCEL: 900,
-  JUMP_VELOCITY: -330,
+  JUMP_VELOCITY: -300,
   JUMP_CUT: 0.45,
   MAX_FALL: 420,
   COYOTE: 90,
@@ -49,12 +49,26 @@ export const FOCUS = {
   CONE: 40,
   RANGE: 240,
   RECOIL_MULT: 2.5,
+  // Dash, away from aim, works in open air
+  DASH: 280,
+  LOCK_MS: 260,
 };
 
 export const RESPAWN_MS = 400;
 
 export const EXIT = {
   NEAR: 24,
-  STAY_MS: 1200,
+  STAY_MS: 700,
 };
 
+// Crawler, kills if you shout beside it
+export const CRAWLER = {
+  CRAWL_SPEED: 30,
+  CHASE_SPEED: 90,
+  HEARING: 220,
+  NOTICE: 28,
+  KILL: 48,
+  LOSE: 200,
+  SEEK_MS: 6000,
+  SAFE: 160,
+};

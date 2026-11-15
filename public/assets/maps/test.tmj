@@ -1817,7 +1817,37 @@
      "visible": true,
      "width": 32,
      "x": 576,
-     "y": 48
+     "y": 48,
+     "properties": [
+      {
+       "name": "to",
+       "type": "string",
+       "value": "test"
+      },
+      {
+       "name": "story",
+       "type": "string",
+       "value": "intro"
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "name": "hint",
+     "type": "",
+     "x": 16,
+     "y": 240,
+     "width": 160,
+     "height": 80,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "text",
+       "type": "string",
+       "value": "\u2190 \u2192 move \u00b7 Space jump"
+      }
+     ]
     }
    ],
    "opacity": 1,
@@ -1828,7 +1858,7 @@
   }
  ],
  "nextlayerid": 4,
- "nextobjectid": 3,
+ "nextobjectid": 5,
  "orientation": "orthogonal",
  "renderorder": "right-down",
  "tiledversion": "1.12.2",
@@ -1893,5 +1923,12 @@
  "tilewidth": 16,
  "type": "map",
  "version": "1.10",
- "width": 40
+ "width": 40,
+ "properties": [
+  {
+   "name": "crawlers",
+   "type": "int",
+   "value": 2
+  }
+ ]
 }

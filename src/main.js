@@ -3,6 +3,7 @@ import { WIDTH, HEIGHT, GRAVITY } from './config.js';
 import BootScene from './scenes/BootScene.js';
 import TitleScene from './scenes/TitleScene.js';
 import GameScene from './scenes/GameScene.js';
+import StoryScene from './scenes/StoryScene.js';
 
 new Phaser.Game({
   type: Phaser.WEBGL,
@@ -14,5 +15,5 @@ new Phaser.Game({
   backgroundColor: '#000000',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   physics: { default: 'arcade', arcade: { gravity: { y: GRAVITY }, debug: false } },
-  scene: [BootScene, TitleScene, GameScene],
+  scene: [BootScene, TitleScene, GameScene, StoryScene],
 });

@@ -1,11 +1,18 @@
 // Spike hitbox by tile: x, y, w, h (only its base)
-const x = 8
+const x = 8;
 const SPIKE_BOX = {
   2: [1, 16 - x, 14, x],
   3: [1, 0, 14, x],
   4: [16 - x, 1, x, 14],
   5: [0, 1, x, 14],
 };
+
+// Tiled custom properties, list --> object
+function props(list) {
+  const out = {};
+  for (const p of list ?? []) out[p.name] = p.value;
+  return out;
+}
 
 export function loadRoom(scene, key) {
   // Tiled Map, tileset --> image
@@ -24,16 +31,26 @@ export function loadRoom(scene, key) {
     if (box) spikeBoxes.push({ x: t.pixelX + box[0], y: t.pixelY + box[1], w: box[2], h: box[3] });
   });
 
-  // Spawn, exit
   const objects = map.getObjectLayer('objects')?.objects ?? [];
+
+  // Exits: to (room), entry (point there), story (cards)
+  const exits = objects
+    .filter((o) => o.name === 'exit')
+    .map((o) => ({ id: o.id, x: o.x, y: o.y, width: o.width, height: o.height, ...props(o.properties) }));
+
+  // Hints, text boxes
+  const hints = objects
+    .filter((o) => o.name === 'hint')
+    .map((o) => ({ x: o.x, y: o.y, w: o.width, h: o.height, text: props(o.properties).text ?? '' }));
+
+  // Points by name (spawn, entries)
   const find = (name) => objects.find((o) => o.name === name);
   const spawn = find('spawn');
-  const exit = find('exit');
 
   // Missing check
-  if (!spawn || !exit) {
+  if (!spawn || exits.length === 0) {
     throw new Error(`Room "${key}" needs a point named 'spawn' and a rectangle named 'exit'`);
   }
 
-  return { map, solid, spikes, spikeBoxes, objects, spawn, exit };
+  return { map, solid, spikes, spikeBoxes, objects, spawn, exits, hints, find, props: props(map.properties) };
 }

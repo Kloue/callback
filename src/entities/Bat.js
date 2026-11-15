@@ -91,22 +91,22 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     }
     if (b.velocity.y >= 0) this.rising = false;
 
-    // Facing, anims (shout pose wins)
+    // Facing, anims (shout first)
     if (dir !== 0) this.setFlipX(dir < 0);
     if (time < this.shoutUntil) this.play('bat-shout', true);
     else if (!grounded) this.play(b.velocity.y < 0 ? 'bat-jump' : 'bat-fall', true);
     else this.play(dir !== 0 ? 'bat-run' : 'bat-idle', true);
   }
 
-  // Echo push
-  recoil(push, time) {
+  // Echo push, focus locks longer
+  recoil(push, time, lockMs = RECOIL.LOCK_MS) {
     this.body.velocity.x = this.body.velocity.x * RECOIL.KEEP + push.x;
     this.body.velocity.y = this.body.velocity.y * RECOIL.KEEP + push.y;
-    this.controlLockUntil = time + RECOIL.LOCK_MS;
+    this.controlLockUntil = time + lockMs;
     this.rising = false;
   }
 
-  // Mouth open briefly
+  // Shout frame, short
   shoutPose(time) {
     this.shoutUntil = time + 150;
   }

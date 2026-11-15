@@ -6,7 +6,8 @@ import EchoSystem from '../systems/EchoSystem.js';
 import Bat from '../entities/Bat.js';
 import ExitLight from '../entities/ExitLight.js';
 import { ROOMS } from '../data/rooms.js';
-import { ECHO, FOCUS, EXIT, RESPAWN_MS, CAMERA_ZOOM } from '../config.js';
+import Crawler, { wallCells } from '../entities/Crawler.js';
+import { ECHO, FOCUS, EXIT, CRAWLER, RECOIL, RESPAWN_MS, CAMERA_ZOOM, TILE } from '../config.js';
 
 // Box overlap
 const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -22,11 +23,11 @@ export default class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
   create() {
-    // Current room
-    this.roomIndex = this.registry.get('room') ?? 0;
-    this.roomKey = ROOMS[this.roomIndex];
+    // Current room, entry point (first room if new run)
+    this.roomKey = this.registry.get('room') ?? ROOMS[0];
     this.room = loadRoom(this, this.roomKey);
-    const { map, solid, spikes, spawn, exit } = this.room;
+    const { map, solid, spikes } = this.room;
+    const spawn = this.room.find(this.registry.get('entry') ?? 'spawn') ?? this.room.spawn;
     this.dead = false;
     this.leaving = false;
 
@@ -39,10 +40,24 @@ export default class GameScene extends Phaser.Scene {
     this.grid = new EchoGrid(solid, spikes);
     this.echo = new EchoSystem(this, this.grid);
 
-    // Exit light
-    this.exitLight = new ExitLight(this, exit, `exit-${this.roomKey}`);
-    this.exitBox = { x: exit.x, y: exit.y, w: exit.width, h: exit.height };
+    // Exits, each with its own light
+    this.exits = this.room.exits.map((e) => ({
+      ...e,
+      box: { x: e.x, y: e.y, w: e.width, h: e.height },
+      light: new ExitLight(this, e, `exit-${this.roomKey}-${e.id}`),
+    }));
     this.exitTime = 0;
+
+    // Crawlers, random spots on the walls, not near the start
+    this.crawlers = [];
+    const count = this.room.props.crawlers ?? 0;
+    const cells = wallCells(this.grid).filter(([cx, cy]) =>
+      Math.hypot(cx * TILE + 8 - spawn.x, cy * TILE + 8 - spawn.y) > CRAWLER.SAFE);
+    for (let i = 0; i < count && cells.length > 0; i++) {
+      const k = Math.floor(Math.random() * cells.length);
+      const [cx, cy] = cells.splice(k, 1)[0];
+      this.crawlers.push(new Crawler(this, this.grid, cx, cy));
+    }
 
     // Bat
     this.player = new Bat(this, spawn.x, spawn.y);
@@ -57,6 +72,11 @@ export default class GameScene extends Phaser.Scene {
     // Bars above bat: focus (cyan), exit (gold)
     this.focusG = this.add.graphics();
     this.exitG = this.add.graphics();
+
+    // Hint text, above the bat (half scale, sharp at zoom 2)
+    this.hintText = this.add.text(0, 0, '', {
+      fontFamily: 'monospace', fontSize: '16px', color: '#E8E8FF', align: 'center',
+    }).setOrigin(0.5, 1).setScale(0.5).setAlpha(0);
 
     // Debug hitboxes, shown with terrain
     this.debugG = this.add.graphics().setVisible(false);
@@ -117,15 +137,17 @@ export default class GameScene extends Phaser.Scene {
 
     // Footsteps, landing
     const grounded = p.body.blocked.down;
-    if (grounded && !this.wasGrounded) this.echo.smallPing(p.x, p.y + 4);
+    if (grounded && !this.wasGrounded) this.footstep(p, time);
     if (grounded && Math.abs(p.body.velocity.x) > 20 && time >= this.nextStep) {
       this.nextStep = time + 250;
-      this.echo.smallPing(p.x, p.y + 4);
+      this.footstep(p, time);
     }
     this.wasGrounded = grounded;
 
     this.echo.update(time);
-    this.exitLight.update(time, delta);
+    for (const e of this.exits) e.light.update(time, delta);
+    for (const c of this.crawlers) c.update(time, delta, p);
+    this.drawHint(p);
 
     // Spikes, exit
     const b = p.body;
@@ -139,18 +161,24 @@ export default class GameScene extends Phaser.Scene {
       d.lineStyle(1, 0x00FF88, 1);
       d.strokeRect(b.x, b.y, b.width, b.height);
       d.lineStyle(1, 0xFFC46B, 1);
-      d.strokeRect(this.exitBox.x, this.exitBox.y, this.exitBox.w, this.exitBox.h);
+      for (const e of this.exits) d.strokeRect(e.box.x, e.box.y, e.box.w, e.box.h);
+      d.lineStyle(1, 0xFF4A5A, 0.4);
+      for (const c of this.crawlers) d.strokeCircle(c.x, c.y, CRAWLER.KILL);
     }
 
     if (this.room.spikeBoxes.some((s) => overlaps(me, s))) return this.die();
 
-    // Close to exit, reveal it
-    if (distToBox(p.x, p.y, this.exitBox) < EXIT.NEAR) this.exitLight.reveal(time);
+    // Close to an exit, reveal it
+    let inside = null;
+    for (const e of this.exits) {
+      if (distToBox(p.x, p.y, e.box) < EXIT.NEAR) e.light.reveal(time);
+      if (overlaps(me, e.box)) inside = e;
+    }
 
     // Stay in exit to leave
-    if (overlaps(me, this.exitBox)) {
+    if (inside) {
       this.exitTime += delta;
-      if (this.exitTime >= EXIT.STAY_MS) return this.nextRoom();
+      if (this.exitTime >= EXIT.STAY_MS) return this.leave(inside);
     } else {
       this.exitTime = 0;
     }
@@ -180,11 +208,11 @@ export default class GameScene extends Phaser.Scene {
 
   // Shout, charge 0 = normal, 1 = full focus
   shout(time, charge) {
-    const p = this.player;
     this.nextShout = time + ECHO.COOLDOWN;
+    const p = this.player;
     const aim = this.getAim();
 
-    // Blend from normal to focus by charge
+    // Tap to focus, blended by charge
     const cone = ECHO.CONE + (FOCUS.CONE - ECHO.CONE) * charge;
     const range = ECHO.SHOUT_RANGE + (FOCUS.RANGE - ECHO.SHOUT_RANGE) * charge;
     const power = 1 + (FOCUS.RECOIL_MULT - 1) * charge;
@@ -193,18 +221,37 @@ export default class GameScene extends Phaser.Scene {
     p.shoutPose(time);
     this.checkExit(p, aim, time, cone, range);
 
+    // Crawlers: beside it, dead. Further, it hears (focus is louder)
+    const loud = 1 + charge * 0.5;
+    for (const c of this.crawlers) {
+      if (c.near(p.x, p.y)) {
+        c.reveal(time);
+        return this.die();
+      }
+      c.hear(p.x, p.y, loud, time);
+      if (c.dist(p.x, p.y) < range) c.reveal(time);
+    }
+
     // Recoil, once per air
-    // Standing: floor only pushes if aiming down
     const onGround = p.body.blocked.down;
     const aimingDown = Math.sin(aim) > 0.7;
-    if (onGround || p.airCharge) {
-      const push = recoilFrom(hits, onGround && !aimingDown, power);
-      if (push) {
-        p.recoil(push, time);
-        if (!onGround) p.airCharge = false;
-        this.cameras.main.shake(80, 0.003 * power);
+    if (!onGround && !p.airCharge) return;
+
+    let push = recoilFrom(hits, onGround && !aimingDown, power);
+
+    // Focus dash, away from aim (open air too)
+    if (charge > 0) {
+      const dash = FOCUS.DASH * charge;
+      if (!push || Math.hypot(push.x, push.y) < dash) {
+        push = { x: -Math.cos(aim) * dash, y: -Math.sin(aim) * dash };
       }
     }
+    if (!push) return;
+
+    const lock = charge > 0 ? FOCUS.LOCK_MS : RECOIL.LOCK_MS;
+    p.recoil(push, time, lock);
+    if (!onGround) p.airCharge = false;
+    this.cameras.main.shake(80, 0.003 * power);
   }
 
   // Focus charge bar above bat, cyan
@@ -231,24 +278,43 @@ export default class GameScene extends Phaser.Scene {
     g.fillRect(x, y, 16 * Math.min(1, this.exitTime / EXIT.STAY_MS), 3);
   }
 
-  // Exit found by shout/echo
+  // Footstep, tiny echo, crawlers right beside notice
+  footstep(p, time) {
+    this.echo.smallPing(p.x, p.y + 4);
+    for (const c of this.crawlers) {
+      c.step(p.x, p.y);
+      if (c.dist(p.x, p.y) < ECHO.STEP_RANGE + 8) c.reveal(time);
+    }
+  }
+
+  // Hint text when inside a hint box
+  drawHint(p) {
+    const h = this.room.hints.find((r) => p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h);
+    const t = this.hintText;
+    if (h && t.text !== h.text) t.setText(h.text);
+    t.setPosition(p.x, p.y - 22);
+    t.setAlpha(Phaser.Math.Clamp(t.alpha + (h ? 0.08 : -0.08), 0, 1));
+  }
+
+  // Exits found by shout/echo
   checkExit(p, aim, time, cone, range) {
-    if (this.exitLight.seen) return;
-    const { exit } = this.room;
-    const dx = exit.x + exit.width / 2 - p.x;
-    const dy = exit.y + exit.height / 2 - p.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist > range) return;
+    for (const e of this.exits) {
+      if (e.light.seen) continue;
+      const dx = e.x + e.width / 2 - p.x;
+      const dy = e.y + e.height / 2 - p.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > range) continue;
 
-    // Inside cone
-    const angle = Math.atan2(dy, dx);
-    const off = Math.abs(Math.atan2(Math.sin(angle - aim), Math.cos(angle - aim)));
-    if (off > (cone * Math.PI) / 360) return;
+      // Inside cone
+      const angle = Math.atan2(dy, dx);
+      const off = Math.abs(Math.atan2(Math.sin(angle - aim), Math.cos(angle - aim)));
+      if (off > (cone * Math.PI) / 360) continue;
 
-    // Not behind rock
-    if (this.grid.castRay(p.x, p.y, angle, dist - 8)) return;
+      // Not behind rock
+      if (this.grid.castRay(p.x, p.y, angle, dist - 8)) continue;
 
-    this.exitLight.reveal(time + (dist / ECHO.RING_SPEED) * 1000);
+      e.light.reveal(time + (dist / ECHO.RING_SPEED) * 1000);
+    }
   }
 
   // Death, quick respawn
@@ -261,17 +327,27 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(RESPAWN_MS, () => this.scene.restart());
   }
 
-  // Next room, or title after last
-  nextRoom() {
+  // Walk out, then story cards or the next room
+  leave(e) {
     this.leaving = true;
-    const next = this.roomIndex + 1;
-    this.cameras.main.fadeOut(150);
-    this.time.delayedCall(150, () => {
-      if (next < ROOMS.length) {
-        this.registry.set('room', next);
-        this.scene.restart();
-      } else {
+    this.exitG.clear();
+    const p = this.player;
+    p.body.setVelocityX(p.flipX ? -90 : 90);
+    p.play('bat-run', true);
+    this.cameras.main.fadeOut(300);
+
+    this.time.delayedCall(300, () => {
+      this.registry.set('room', e.to ?? 'end');
+      this.registry.set('entry', e.entry ?? 'spawn');
+
+      // Story once per key
+      if (e.story && !this.registry.get(`story-${e.story}`)) {
+        this.registry.set(`story-${e.story}`, true);
+        this.scene.start('Story', { key: e.story });
+      } else if (e.to === 'end' || !e.to) {
         this.scene.start('Title');
+      } else {
+        this.scene.restart();
       }
     });
   }
