@@ -8,6 +8,7 @@ const CARDS = [
   ['X   or   J', 'shout · your echo shows the walls'],
   ['W A S D   or   arrows', 'hold any direction while you shout to aim'],
   ['hold X   or   J', 'focus · a longer, stronger shout'],
+  ['R   ·   Esc', 'restart the room · back to the menu'],
   ['', "the rest, you'll learn down there."],
 ];
 

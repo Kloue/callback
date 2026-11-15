@@ -7,7 +7,8 @@ import Bat from '../entities/Bat.js';
 import ExitLight from '../entities/ExitLight.js';
 import { ROOMS } from '../data/rooms.js';
 import Crawler, { wallCells } from '../entities/Crawler.js';
-import { ECHO, FOCUS, EXIT, CRAWLER, RECOIL, RESPAWN_MS, CAMERA_ZOOM, TILE } from '../config.js';
+import { ECHO, FOCUS, EXIT, CRAWLER, RECOIL, RESPAWN_MS, CAMERA_ZOOM, TILE, DEBUG } from '../config.js';
+
 
 // Box overlap
 const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -98,7 +99,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Debug: ` terrain, R restart, Esc title
     this.input.keyboard.on('keydown', (e) => {
-      if (e.code === 'Backquote') {
+      if (DEBUG && e.code === 'Backquote') {
         this.terrainVisible = !this.terrainVisible;
         solid.setVisible(this.terrainVisible);
         spikes?.setVisible(this.terrainVisible);

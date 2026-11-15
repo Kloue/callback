@@ -74,3 +74,6 @@ export const CRAWLER = {
   SEEK_MS: 6000,
   SAFE: 120,
 };
+
+// Debug view (` key), off for release
+export const DEBUG = false;
