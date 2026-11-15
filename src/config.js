@@ -33,3 +33,10 @@ export const ECHO = {
   JITTER: 3,
   COOLDOWN: 250,
 };
+
+export const RECOIL = {
+  RANGE: 48,
+  MAX: 360,
+  KEEP: 0.3,
+  LOCK_MS: 120,
+};

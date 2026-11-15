@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
-import { PLAYER as P } from '../config.js';
+import { PLAYER as P, RECOIL } from '../config.js';
+
 
 const JustDown = Phaser.Input.Keyboard.JustDown;
 
@@ -33,6 +34,7 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     this.lastJumpPressed = -Infinity;
     this.controlLockUntil = 0;
     this.rising = false;
+    this.airCharge = true;
 
     Bat.createAnims(scene);
     this.play('bat-idle');
@@ -53,10 +55,14 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     const dt = Math.min(delta, 50) / 1000;
     const b = this.body;
     const k = this.keys;
-
     const grounded = b.blocked.down;
-    if (grounded) this.lastGrounded = time;
 
+    
+    // landing on the ground refils the recoil
+    if (grounded) {
+      this.lastGrounded = time;
+      this.airCharge = true;
+    }
     // -1 left, 1 right
     const dir = ((k.right.isDown || k.d.isDown) ? 1 : 0) - ((k.left.isDown || k.a.isDown) ? 1 : 0);
 
@@ -88,5 +94,13 @@ export default class Bat extends Phaser.Physics.Arcade.Sprite {
     if (dir !== 0) this.setFlipX(dir < 0);
     if (!grounded) this.play(b.velocity.y < 0 ? 'bat-jump' : 'bat-fall', true);
     else this.play(dir !== 0 ? 'bat-run' : 'bat-idle', true);
-  }
+    }
+
+   // Echo push
+    recoil(push, time) {
+        this.body.velocity.x = this.body.velocity.x * RECOIL.KEEP + push.x;
+        this.body.velocity.y = this.body.velocity.y * RECOIL.KEEP + push.y;
+        this.controlLockUntil = time + RECOIL.LOCK_MS;
+        this.rising = false;
+    }
 }

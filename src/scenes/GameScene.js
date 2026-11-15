@@ -5,6 +5,7 @@ import EchoGrid from '../systems/EchoGrid.js';
 import EchoSystem from '../systems/EchoSystem.js';
 import { HEIGHT, ECHO } from '../config.js';
 import ExitLight from '../entities/ExitLight.js';
+import { recoilFrom } from '../systems/Recoil.js';
 const JustDown = Phaser.Input.Keyboard.JustDown;
 
 export default class GameScene extends Phaser.Scene {
@@ -54,10 +55,25 @@ export default class GameScene extends Phaser.Scene {
     if (pressed && time >= this.nextShout) {
       this.nextShout = time + ECHO.COOLDOWN;
       const k = p.keys;
-      const ax = p.flipX ? -1 : 1;
+
+      //aim echo
+      const ax = (k.right.isDown || k.d.isDown) ? 1 : (k.left.isDown || k.a.isDown) ? -1 : 0;
       const ay = (k.down.isDown || k.s.isDown) ? 1 : (k.up.isDown || k.w.isDown) ? -1 : 0;
-      const aim = Math.atan2(ay, ax);
-      this.echo.shout(p.x, p.y, aim);
+      const aim = ax === 0 && ay === 0 ? (p.flipX ? Math.PI : 0) : Math.atan2(ay, ax);
+
+
+      const hits = this.echo.shout(p.x, p.y, aim);
+      const onGround = p.body.blocked.down;
+
+      // Recoil, once per air only (so later u can refill once you touch the ground)
+      if (onGround || p.airCharge) {
+        const push = recoilFrom(hits, onGround);
+        if (push) {
+          p.recoil(push, time);
+          if (!onGround) p.airCharge = false;
+          this.cameras.main.shake(80, 0.004);
+        }
+      }
     }
 
     // Footsteps, landing
